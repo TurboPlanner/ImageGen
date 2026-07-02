@@ -1,0 +1,13 @@
+node_modules
+package.json
+package-lock.json
+pnpm-lock.yaml
+bun.lock
+yarn.lock
+.kilo/.gitignore
+.kilo/node_modules
+.kilo/package.json
+.kilo/package-lock.json
+.kilo/agent-manager.json
+temp_check.json
+yolov8n.pt

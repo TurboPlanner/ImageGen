@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearRefine — Interactive Settings</title>
+<link rel="stylesheet" href="prototype-settings.css?v=1">
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="prototype-settings.js?v=1"></script>
+</body>
+</html>
+  .pipeline-vis .arrow { color: #475569; font-size: 0.8rem; }
+
+  .section { margin-bottom: 1.5rem; }
+  .section-title {
+    font-size: 0.85rem; font-weight: 600; color: #94a3b8; text-transform: uppercase;
+    letter-spacing: 0.04em; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem;
+  }
+  .section-title .count { font-size: 0.7rem; color: #475569; font-weight: 400; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.8rem; }
+
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 0.6rem; padding: 1rem;
+    position: relative;
+  }
+  .card .card-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;
+  }
+  .card .card-header h3 { font-size: 0.82rem; color: #e2e8f0; font-weight: 600; }
+  .card .card-header .tag {
+    font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 4px;
+    background: #1a304a; color: #58a6ff; font-weight: 600;
+  }
+  .card .card-header .tag.orange { background: #3d2914; color: #d29922; }
+  .card .card-header .tag.green { background: #1b3a2d; color: #3fb950; }
+  .card .card-header .tag.purple { background: #2a1a4a; color: #bc8cff; }
+  .card .card-header .tag.red { background: #3d1a1a; color: #f87171; }
+
+  .field { margin: 0.4rem 0; display: flex; align-items: center; gap: 0.5rem; }
+  .field label { font-size: 0.78rem; color: #64748b; min-width: 7rem; flex-shrink: 0; }
+  .field .value { font-size: 0.82rem; color: #e2e8f0; font-family: monospace; }
+  .field .value.number { color: #38bdf8; }
+  .field .value.string { color: #4ade80; }
+  .field .value.boolean { color: #fbbf24; }
+
+  .node-ref {
+    display: inline-block; font-size: 0.65rem; background: #0f172a; color: #475569;
+    padding: 0.1rem 0.35rem; border-radius: 3px; font-family: monospace; margin-left: 0.3rem;
+  }
+
+  .prompt-box {
+    background: #0f172a; border: 1px solid #334155; border-radius: 0.4rem;
+    padding: 0.5rem; font-size: 0.78rem; font-family: monospace; line-height: 1.4; margin-top: 0.3rem;
+    word-break: break-word;
+  }
+  .prompt-box.positive { border-left: 3px solid #4ade80; }
+  .prompt-box.negative { border-left: 3px solid #f87171; }
+
+  .workflow-map { margin-top: 1.5rem; }
+  .workflow-map details { margin-bottom: 0.5rem; }
+  .workflow-map summary {
+    font-size: 0.8rem; color: #94a3b8; cursor: pointer; padding: 0.3rem 0;
+    font-weight: 600;
+  }
+  .workflow-map summary:hover { color: #e2e8f0; }
+  .map-row {
+    display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0 0.2rem 1.2rem;
+    font-size: 0.75rem; font-family: monospace; color: #64748b;
+  }
+  .map-row .key { color: #38bdf8; min-width: 10rem; }
+  .map-row .val { color: #4ade80; }
+  .map-row .node-id { color: #475569; font-size: 0.65rem; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script>
+const { useState, createElement: h } = React;
+
+// ── config data ───────────────────────────────────────────────
+
+const CONFIG = {
+  comfyui: {
+    base_url: "http://127.0.0.1:8188",
+    input_dir: "C:\\Users\\LENOVO\\AppData\\Local\\Comfy-Desktop\\ComfyUI-Shared\\input",
+    output_dir: "C:\\Users\\LENOVO\\AppData\\Local\\Comfy-Desktop\\ComfyUI-Shared\\output",
+  },
+  processing: {
+    output_prefix: "refined_",
+    poll_interval: 2.0,
+    poll_timeout: 300,
+  },
+  ksampler: {
+    node_id: 8, label: "KSampler",
+    fields: {
+      steps:       { value: 20,    type: "number", desc: "Sampling steps" },
+      cfg:         { value: 7.0,   type: "number", desc: "CFG scale" },
+      denoise:     { value: 0.2,   type: "number", desc: "Denoise strength" },
+      sampler:     { value: "dpmpp_2m_sde_gpu", type: "string", desc: "Sampler name" },
+      scheduler:   { value: "sgm_uniform",       type: "string", desc: "Scheduler" },
+    },
+  },
+  facedetailer: {
+    node_id: 10, label: "FaceDetailer",
+    fields: {
+      guide_size:    { value: 512,  type: "number", desc: "Guide size (px)" },
+      max_size:      { value: 1024, type: "number", desc: "Max size (px)" },
+      steps:         { value: 30,   type: "number", desc: "Sampling steps" },
+      cfg:           { value: 8.0,  type: "number", desc: "CFG scale" },
+      denoise:       { value: 0.35, type: "number", desc: "Denoise strength" },
+      feather:       { value: 8,    type: "number", desc: "Feather blur (px)" },
+      bbox_dilation: { value: 10,   type: "number", desc: "Bbox dilation (px)" },
+      bbox_crop_factor: { value: 3, type: "number", desc: "Bbox crop factor" },
+      force_inpaint: { value: true, type: "boolean", desc: "Force inpaint" },
+    },
+  },
+  controlnet: {
+    node_id: 7, label: "ControlNet Tile",
+    fields: {
+      strength:      { value: 1.0, type: "number", desc: "Control strength" },
+      start_percent: { value: 0.0, type: "number", desc: "Start percent" },
+      end_percent:   { value: 1.0, type: "number", desc: "End percent" },
+    },
+  },
+  lora: {
+    node_id: 2, label: "LoRA",
+    fields: {
+      lora_name:     { value: "add-detail-xl.safetensors", type: "string", desc: "LoRA name" },
+      strength_model:{ value: 0.6, type: "number", desc: "Model strength" },
+      strength_clip: { value: 0.6, type: "number", desc: "CLIP strength" },
+    },
+  },
+  prompts: {
+    positive: {
+      node_id: 3, label: "CLIP Text Encode (Pos)",
+      value: "hyper realism, photo realism. HDR, natural skin colour, great contrast, great colour saturation, five fingers on both hands",
+    },
+    negative: {
+      node_id: 4, label: "CLIP Text Encode (Neg)",
+      value: "bad quality, blurry, messy, low resolution, artifacts, deformed fingers, female, girl, makeup",
+    },
+  },
+};
+
+// ── mini components ───────────────────────────────────────────
+
+function Tag({ label, color }) {
+  return h("span", { className: `tag ${color || ""}` }, label);
+}
+
+function Field({ name, field }) {
+  const cls = `value ${field.type}`;
+  const val = field.type === "boolean" ? (field.value ? "true" : "false") : String(field.value);
+  return h("div", { className: "field", title: field.desc },
+    h("label", null, name),
+    h("span", { className: cls }, val),
+  );
+}
+
+// ── section cards ─────────────────────────────────────────────
+
+function ConfigCard({ title, tag, tagColor, nodeId, fields }) {
+  return h("div", { className: "card" },
+    h("div", { className: "card-header" },
+      h("h3", null, title,
+        nodeId && h("span", { className: "node-ref" }, `node #${nodeId}`),
+      ),
+      h(Tag, { label: tag, color: tagColor }),
+    ),
+    Object.entries(fields).map(([name, field]) =>
+      h(Field, { key: name, name, field })
+    ),
+  );
+}
+
+function PromptCard({ side, data }) {
+  const isPos = side === "positive";
+  return h("div", { className: "card" },
+    h("div", { className: "card-header" },
+      h("h3", null,
+        isPos ? "✅ Positive Prompt" : "❌ Negative Prompt",
+        h("span", { className: "node-ref" }, `node #${data.node_id}`),
+      ),
+      h(Tag, { label: side === "positive" ? "Pos" : "Neg", color: side === "positive" ? "green" : "red" }),
+    ),
+    h("div", { className: `prompt-box ${side}` }, data.value),
+  );
+}
+
+// ── pipeline bar ──────────────────────────────────────────────
+
+const PIPELINE_STEPS = [
+  { id: "checkpoint", label: "Load Checkpoint", color: "active" },
+  { id: "lora",       label: "LoRA",            color: "" },
+  { id: "clip-pos",   label: "CLIP Pos",        color: "" },
+  { id: "clip-neg",   label: "CLIP Neg",        color: "" },
+  { id: "cn",         label: "ControlNet",      color: "" },
+  { id: "ksample",    label: "KSampler",        color: "" },
+  { id: "face",       label: "FaceDetailer",    color: "" },
+  { id: "save",       label: "Save",            color: "" },
+];
+
+function PipelineBar() {
+  return h("div", { className: "pipeline-vis" },
+    PIPELINE_STEPS.map((s, i) =>
+      h("div", { key: s.id, style: { display: "flex", alignItems: "center", gap: "0.5rem" } },
+        i > 0 && h("span", { className: "arrow" }, "\u2192"),
+        h("div", { className: `node ${s.color}` }, s.label),
+      )
+    ),
+  );
+}
+
+// ── workflow map ──────────────────────────────────────────────
+
+const WORKFLOW_MAP = [
+  { node: 1,  cls: "CheckpointLoaderSimple",           key: "ckpt_name",           val: "fabledIllusionNSFW_v7Apoapsis.safetensors" },
+  { node: 2,  cls: "LoraLoader",                       key: "lora_name",           val: "add-detail-xl.safetensors" },
+  { node: 3,  cls: "CLIPTextEncode (pos)",              key: "text",               val: "(positive prompt)" },
+  { node: 4,  cls: "CLIPTextEncode (neg)",              key: "text",               val: "(negative prompt)" },
+  { node: 5,  cls: "ControlNetLoader",                  key: "control_net_name",   val: "controlnet-tile-sdxl-1.0.safetensors" },
+  { node: 7,  cls: "ControlNetApply",                   key: "strength",           val: "1.0" },
+  { node: 8,  cls: "KSampler",                          key: "steps, cfg, denoise", val: "20, 7.0, 0.2" },
+  { node: 10, cls: "FaceDetailer",                      key: "guide_size, steps..", val: "512, 30, 0.35" },
+  { node: 12, cls: "SaveImage",                         key: "filename_prefix",    val: "refined_" },
+];
+
+function WorkflowMap() {
+  return h("div", { className: "workflow-map" },
+    h("details", { open: true },
+      h("summary", null, "Workflow Node Map (\u{1F4CB} 1Clear.json)"),
+      WORKFLOW_MAP.map(w =>
+        h("div", { key: w.node, className: "map-row" },
+          h("span", { className: "node-id" }, `#${w.node}`),
+          h("span", { style: { color: "#64748b", minWidth: "14rem" } }, w.cls),
+          h("span", { className: "key" }, w.key),
+          h("span", { className: "val" }, w.val),
+        )
+      ),
+    ),
+  );
+}
+
+// ── main app ──────────────────────────────────────────────────
+
+function App() {
+  const c = CONFIG;
+
+  return h("div", null,
+    h("header", null,
+      h("h1", null,
+        "\u2699\uFE0F ClearRefine Settings",
+        h("span", { className: "badge" }, "PROTOTYPE"),
+      ),
+      h("p", null,
+        "Interactive pipeline configuration panel \u2014 ",
+        h("span", { style: { color: "#64748b" } }, "click any element to inspect"),
+      ),
+    ),
+
+    h(PipelineBar, null),
+
+    h("div", { className: "section" },
+      h("div", { className: "section-title" },
+        "Image Processing",
+        h("span", { className: "count" }, "KSampler + FaceDetailer + ControlNet + LoRA"),
+      ),
+      h("div", { className: "card-grid" },
+        h(ConfigCard, {
+          title: c.ksampler.label,
+          tag: "Sampler", tagColor: "blue",
+          nodeId: c.ksampler.node_id,
+          fields: c.ksampler.fields,
+        }),
+        h(ConfigCard, {
+          title: c.facedetailer.label,
+          tag: "Face", tagColor: "orange",
+          nodeId: c.facedetailer.node_id,
+          fields: c.facedetailer.fields,
+        }),
+        h(ConfigCard, {
+          title: c.controlnet.label,
+          tag: "Control", tagColor: "purple",
+          nodeId: c.controlnet.node_id,
+          fields: c.controlnet.fields,
+        }),
+        h(ConfigCard, {
+          title: c.lora.label,
+          tag: "LoRA", tagColor: "green",
+          nodeId: c.lora.node_id,
+          fields: c.lora.fields,
+        }),
+      ),
+    ),
+
+    h("div", { className: "section" },
+      h("div", { className: "section-title" },
+        "Prompts",
+        h("span", { className: "count" }, "CLIP Text Encode \u00D7 2"),
+      ),
+      h("div", { className: "card-grid", style: { gridTemplateColumns: "1fr 1fr" } },
+        h(PromptCard, { side: "positive", data: c.prompts.positive }),
+        h(PromptCard, { side: "negative", data: c.prompts.negative }),
+      ),
+    ),
+
+    h("div", { className: "section" },
+      h("div", { className: "section-title" },
+        "Workflow Node Map",
+        h("span", { className: "count" }, "9 nodes from 1Clear.json"),
+      ),
+      h(WorkflowMap, null),
+    ),
+
+    h("div", { style: { textAlign: "center", marginTop: "2rem", fontSize: "0.75rem", color: "#475569" } },
+      "ClearRefine \u2014 Pipeline Settings Prototype  \u00B7  ",
+      h("a", { href: "architecture.html", style: { color: "#38bdf8" }, target: "_blank" }, "Architecture"),
+      "  \u00B7  ",
+      h("a", { href: "index.html", style: { color: "#38bdf8" }, target: "_blank" }, "SPA"),
+    ),
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

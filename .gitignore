@@ -1,4 +1,8 @@
 node_modules
+TestOut/
+__pycache__/
+tests/__pycache__/
+*.pyc
 package.json
 package-lock.json
 pnpm-lock.yaml

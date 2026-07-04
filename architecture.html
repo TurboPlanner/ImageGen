@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearRefine Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 32px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 28px; margin-bottom: 8px; color: #58a6ff; }
+  .subtitle { color: #8b949e; margin-bottom: 32px; font-size: 14px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+  }
+  .card h2 { font-size: 16px; margin-bottom: 8px; }
+  .card .layer { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-green  { background: #1b3a2d; color: #3fb950; }
+  .badge-blue   { background: #1a304a; color: #58a6ff; }
+  .badge-orange { background: #3d2914; color: #d29922; }
+  .badge-red    { background: #3d1a1a; color: #f85149; }
+  .badge-purple { background: #2a1a4a; color: #bc8cff; }
+
+  .conn {
+    margin: 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #8b949e;
+  }
+  .conn .arrow { color: #58a6ff; font-weight: bold; }
+  .conn .method {
+    background: #1a304a;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 10px;
+    color: #58a6ff;
+  }
+
+  .section-title { font-size: 14px; color: #8b949e; margin: 32px 0 16px; }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+    font-family: monospace;
+    font-size: 13px;
+  }
+  .flow-row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green  { background: #3fb950; }
+  .dot-blue   { background: #58a6ff; }
+  .dot-orange { background: #d29922; }
+  .dot-red    { background: #f85149; }
+  .config-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .config-table th, .config-table td {
+    text-align: left;
+    padding: 6px 12px;
+    border-bottom: 1px solid #21262d;
+  }
+  .config-table th { color: #8b949e; font-weight: 500; }
+  .config-table td { font-family: monospace; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+  .seq-btn {
+    display: inline-block;
+    margin: 24px 0 16px;
+    padding: 10px 24px;
+    background: #1a304a;
+    color: #58a6ff;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .seq-btn:hover { background: #264a6a; }
+  .seq-btn:active { background: #1a3a5a; }
+
+  #seq-container {
+    display: none;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 24px;
+    margin-top: 8px;
+    overflow-x: auto;
+  }
+  #seq-container.visible { display: block; }
+  #seq-container svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+
+<h1>ClearRefine</h1>
+<div class="subtitle">SPA + OpenAPI Image Processing Pipeline &mdash; Architecture Overview</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="layer badge badge-green">Browser</div>
+    <h2>SPA</h2>
+    <div style="font-size:12px;color:#8b949e;margin-bottom:8px;">React 18 · UMD CDN · No JSX</div>
+    <div class="conn"><span class="arrow">⏺</span> PathBrowser</div>
+    <div class="conn"><span class="arrow">⏺</span> LogPanel</div>
+    <div class="conn"><span class="arrow">⏺</span> ProgressBar</div>
+    <div class="conn"><span class="arrow">⏺</span> Cancel button</div>
+  </div>
+
+  <div class="card">
+    <div class="layer badge badge-blue">Server</div>
+    <h2>FastAPI</h2>
+    <div style="font-size:12px;color:#8b949e;margin-bottom:8px;">port 8765</div>
+    <div class="conn"><span class="method">POST</span> /api/queue</div>
+    <div class="conn"><span class="method">GET</span>  /api/status/{id}</div>
+    <div class="conn"><span class="method">POST</span> /api/cancel/{id}</div>
+    <div class="conn"><span class="method">GET</span>  /api/browse</div>
+    <div class="conn"><span class="method">GET</span>  /api/logs</div>
+  </div>
+
+  <div class="card">
+    <div class="layer badge badge-red">Engine</div>
+    <h2>clear_refine.py</h2>
+    <div style="font-size:12px;color:#8b949e;margin-bottom:8px;">Workflow builder · Queue · Cancel</div>
+    <div class="conn"><span class="arrow">⏺</span> Build workflow from 1Clear.json</div>
+    <div class="conn"><span class="arrow">⏺</span> Copy images → ComfyUI input</div>
+    <div class="conn"><span class="arrow">⏺</span> Poll /history for progress</div>
+    <div class="conn"><span class="arrow">⏺</span> Cancel via /interrupt</div>
+  </div>
+
+  <div class="card">
+    <div class="layer badge badge-purple">Backend</div>
+    <h2>ComfyUI</h2>
+    <div style="font-size:12px;color:#8b949e;margin-bottom:8px;">port 8188</div>
+    <div class="conn"><span class="method">POST</span> /prompt</div>
+    <div class="conn"><span class="method">GET</span>  /history</div>
+    <div class="conn"><span class="method">POST</span> /interrupt</div>
+  </div>
+</div>
+
+<div class="section-title">Workflow Pipeline</div>
+
+<div class="flow-row"><span class="dot dot-green"></span> Load Checkpoint <span style="color:#8b949e">fabledIllusionNSFW_v7Apoapsis</span></div>
+<div class="flow-row"><span class="dot"></span> ↓ Load LoRA <span style="color:#8b949e">add-detail-xl · strength 0.6</span></div>
+<div class="flow-row"><span class="dot"></span> ↓ CLIP Encode <span style="color:#8b949e">positive + negative</span></div>
+<div class="flow-row"><span class="dot"></span> ↓ ControlNet Tile <span style="color:#8b949e">strength 1.0</span></div>
+<div class="flow-row"><span class="dot"></span> ↓ Load Image → Resize → VAE Encode</div>
+<div class="flow-row"><span class="dot dot-blue"></span> ↓ KSampler <span style="color:#8b949e">steps=20 · cfg=7 · denoise=0.2</span></div>
+<div class="flow-row"><span class="dot"></span> ↓ VAE Decode</div>
+<div class="flow-row"><span class="dot dot-orange"></span> ↓ FaceDetailer <span style="color:#8b949e">30 steps · denoise=0.35 · force inpaint</span></div>
+<div class="flow-row"><span class="dot dot-green"></span> ↓ Save Image</div>
+
+<div class="section-title">Request Flow — Batch Processing</div>
+
+<div style="font-family:monospace;font-size:13px;line-height:1.8;">
+  <span style="color:#3fb950;">Browser</span><span style="color:#8b949e;"> → </span><span style="color:#58a6ff;">POST /api/queue</span><span style="color:#8b949e;"> → </span><span style="color:#d29922;">FastAPI</span><br>
+  <span style="color:#8b949e;">&nbsp;&nbsp;└─ </span><span style="color:#d29922;">FastAPI</span><span style="color:#8b949e;"> → </span><span style="color:#bc8cff;">process_batch()</span><span style="color:#8b949e;"><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ loop images: </span><span style="color:#d29922;">POST /prompt</span><span style="color:#8b949e;"> → </span><span style="color:#f85149;">ComfyUI</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ poll: </span><span style="color:#d29922;">GET /history</span><span style="color:#8b949e;"> → </span><span style="color:#f85149;">ComfyUI</span><br>
+  <span style="color:#8b949e;">&nbsp;&nbsp;└─ </span><span style="color:#d29922;">FastAPI</span><span style="color:#8b949e;"> → SSE/log → </span><span style="color:#3fb950;">Browser</span>
+</div>
+
+<div class="section-title">Key Config Parameters</div>
+<table class="config-table">
+  <tr><th>Section</th><th>Key Parameters</th></tr>
+  <tr><td>KSampler</td><td>steps=20 · cfg=7 · denoise=0.2 · sampler=uni_pc · scheduler=simple</td></tr>
+  <tr><td>FaceDetailer</td><td>guide_size=512 · max_size=1024 · steps=30 · cfg=4 · denoise=0.35 · feather=20 · bbox_dilation=30 · bbox_crop_factor=3.0</td></tr>
+  <tr><td>ControlNet</td><td>strength=1.0 · start_percent=0.0 · end_percent=1.0</td></tr>
+  <tr><td>LoRA</td><td>lora_name=add-detail-xl · strength_model=0.6 · strength_clip=0.6</td></tr>
+  <tr><td>Prompts</td><td>positive · negative (editable in UI)</td></tr>
+</table>
+
+<button class="seq-btn" onclick="toggleSequenceDiagram()">📊 Sequence Diagram</button>
+<div id="seq-container">
+  <div class="mermaid">
+sequenceDiagram
+    participant Browser as 🌐 Browser (SPA)
+    participant FastAPI as 🟦 FastAPI
+    participant Engine as 🔴 clear_refine
+    participant ComfyUI as 🟣 ComfyUI
+
+    Browser->>FastAPI: POST /api/queue {input_dir, prompts, ...}
+    activate FastAPI
+    FastAPI->>Engine: process_batch()
+    activate Engine
+
+    Engine->>Engine: build_workflow(1Clear.json)
+    Engine->>Engine: load_config(clear_config.json)
+
+    loop For each image
+      Engine->>ComfyUI: copy image → input/
+      Engine->>ComfyUI: POST /prompt (workflow)
+      activate ComfyUI
+      ComfyUI-->>Engine: prompt_id
+      loop Poll until completed
+        Engine->>ComfyUI: GET /history/{id}
+        ComfyUI-->>Engine: status / not ready
+      end
+      ComfyUI-->>Engine: completed ✓ (filenames)
+      deactivate ComfyUI
+    end
+
+    Engine-->>FastAPI: results[]
+    deactivate Engine
+    FastAPI-->>Browser: 202 Accepted {batch_id}
+    deactivate FastAPI
+
+    Browser->>FastAPI: GET /api/status/{id}
+    FastAPI-->>Browser: {status, done, total, current, results}
+
+    alt User clicks Cancel
+      Browser->>FastAPI: POST /api/cancel/{id}
+      FastAPI->>Engine: cancel_event.set()
+      Engine->>ComfyUI: POST /interrupt
+      FastAPI-->>Browser: cancelled
+    end
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    theme: 'dark',
+    themeVariables: {
+      background: '#161b22',
+      primaryColor: '#1a304a',
+      primaryTextColor: '#c9d1d9',
+      primaryBorderColor: '#30363d',
+      lineColor: '#58a6ff',
+      secondaryColor: '#3d1a1a',
+      tertiaryColor: '#1b3a2d',
+      actorBorder: '#30363d',
+      actorTextColor: '#c9d1d9',
+      signalColor: '#58a6ff',
+      signalTextColor: '#8b949e',
+      labelTextColor: '#8b949e',
+      loopTextColor: '#8b949e',
+    },
+    sequence: { showSequenceNumbers: true, actorFontSize: 14, messageFontSize: 12 }
+  });
+
+  let diagramLoaded = false;
+
+  function toggleSequenceDiagram() {
+    const container = document.getElementById('seq-container');
+    container.classList.toggle('visible');
+    if (container.classList.contains('visible') && !diagramLoaded) {
+      mermaid.run({ nodes: [container.querySelector('.mermaid')] });
+      diagramLoaded = true;
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,3 +1,9 @@
+"""ClearRefine — Core engine for batch image processing via ComfyUI.
+
+Builds workflows from 1Clear.json, queues prompts to ComfyUI,
+polls /history for progress, and supports cancellation via /interrupt.
+"""
+
 import asyncio
 import concurrent.futures
 import json
@@ -10,7 +16,9 @@ from pathlib import Path
 from urllib import request as url_req
 from urllib.error import URLError
 
-logger = logging.getLogger("clear_refine")
+import structlog
+
+logger = structlog.get_logger("clear_refine")
 
 COMFYUI_INPUT_DIR = Path(
     "C:\\Users\\LENOVO\\AppData\\Local\\Comfy-Desktop\\ComfyUI-Shared\\input"
@@ -47,6 +55,21 @@ def load_workflow():
 
 
 def build_workflow(image_filename, config=None, positive_prompt=None, negative_prompt=None):
+    """Build a ComfyUI workflow for the given image.
+
+    Loads 1Clear.json, applies overrides from config (LoRA, ControlNet,
+    KSampler, FaceDetailer), injects prompts, sets the image filename,
+    and randomises seeds.
+
+    Args:
+        image_filename: Name of the image file in ComfyUI input dir.
+        config: Override dict (from clear_config.json). If None, loaded.
+        positive_prompt: Override for positive CLIP text encode.
+        negative_prompt: Override for negative CLIP text encode.
+
+    Returns:
+        dict: The complete workflow ready for POST /prompt.
+    """
     wf = load_workflow()
     if config is None:
         config = load_config()

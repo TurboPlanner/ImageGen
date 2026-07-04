@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearRefine — Logger Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f172a; color: #e2e8f0; line-height: 1.5; padding: 2rem;
+  }
+  #root { max-width: 800px; margin: 0 auto; }
+
+  h1 { font-size: 1.4rem; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.5rem; }
+  .badge {
+    font-size: 0.65rem; font-weight: 600; padding: 0.15rem 0.45rem;
+    border-radius: 4px; background: #1a304a; color: #58a6ff;
+  }
+  .badge.debug { background: #3d1a1a; color: #f87171; }
+  .badge.ok    { background: #1b3a2d; color: #4ade80; }
+  .subtitle { color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.5rem; }
+
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 0.6rem;
+    padding: 1rem; margin-bottom: 1rem;
+  }
+  .card h2 { font-size: 0.82rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.6rem; }
+
+  .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .btn {
+    background: #334155; border: none; border-radius: 0.35rem;
+    padding: 0.4rem 0.7rem; color: #e2e8f0; font-size: 0.82rem;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .btn:hover { background: #475569; }
+  .btn-info    { background: #1a304a; color: #38bdf8; }
+  .btn-warn    { background: #3d2914; color: #fbbf24; }
+  .btn-error   { background: #3d1a1a; color: #f87171; }
+  .btn-debug   { background: #1e293b; color: #64748b; border: 1px dashed #475569; }
+  .btn-primary { background: #0284c7; color: #fff; }
+  .btn-danger  { background: #b91c1c; color: #fff; }
+
+  .log-console {
+    background: #0a0f1a; border: 1px solid #334155; border-radius: 0.4rem;
+    padding: 0.5rem; font-family: monospace; font-size: 0.75rem;
+    height: 240px; overflow-y: auto; line-height: 1.5;
+  }
+  .log-console .entry { padding: 0.1rem 0; }
+  .log-console .lvl-DEBUG   { color: #64748b; }
+  .log-console .lvl-INFO    { color: #38bdf8; }
+  .log-console .lvl-WARNING { color: #fbbf24; }
+  .log-console .lvl-ERROR   { color: #f87171; }
+  .log-console .ctx { color: #475569; }
+  .log-console .empty { color: #475569; font-style: italic; }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.82rem; }
+  .info-grid dt { color: #64748b; }
+  .info-grid dd { color: #e2e8f0; font-family: monospace; }
+
+  .playwright-hint {
+    background: #1a304a; border: 1px solid #30363d; border-radius: 0.4rem;
+    padding: 0.8rem; font-size: 0.78rem; font-family: monospace; line-height: 1.5;
+    color: #94a3b8; margin-top: 0.5rem;
+  }
+  .playwright-hint code { color: #4ade80; }
+</style>
+</head>
+<body>
+<div id="root">
+  <h1>
+    ClearRefine Logger
+    <span class="badge debug" id="mode-badge">normal mode</span>
+  </h1>
+  <p class="subtitle" id="mode-desc">
+    Add <code>?debug=true</code> to URL to enable backend forwarding.
+    <span id="mode-notice" style="display:none;color:#4ade80">✓ Debug mode — logs send to server</span>
+  </p>
+
+  <div class="card">
+    <h2>Generate Test Logs</h2>
+    <div class="btn-row">
+      <button class="btn btn-debug"  onclick="window.logger.debug('User action', {step: 1, component:'AuthForm'})">DEBUG</button>
+      <button class="btn btn-info"   onclick="window.logger.info('Pipeline started', {input_dir: 'C:/Test', images: 5})">INFO</button>
+      <button class="btn btn-warn"   onclick="window.logger.warning('LoRA not found, skipping', {lora: 'add-detail-xl.safetensors'})">WARNING</button>
+      <button class="btn btn-error"  onclick="window.logger.error('ComfyUI connection refused', {url: 'http://127.0.0.1:8188'})">ERROR</button>
+      <button class="btn btn-primary" onclick="window.logger.showPanel()">Show debug panel</button>
+      <button class="btn" onclick="window.logger.hidePanel()">Hide panel</button>
+      <button class="btn btn-danger" onclick="window.logger.clear();renderLogs()">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Log Console (window.appLogs)</h2>
+    <div class="log-console" id="log-console">
+      <div class="empty">No logs yet. Click buttons above.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Playwright extraction test</h2>
+    <dl class="info-grid">
+      <dt>Total logs</dt><dd id="log-count">0</dd>
+      <dt>Errors</dt><dd id="log-errors">0</dd>
+      <dt>In memory</dt><dd id="log-memory">0</dd>
+    </dl>
+    <div class="playwright-hint">
+# Playwright: extract logs without touching DOM<br>
+<code>page.evaluate("() => window.logger.getAll()")</code><br>
+<code>page.evaluate("() => window.logger.getByLevel('ERROR')")</code>
+    </div>
+  </div>
+</div>
+
+<script src="logger.js"></script>
+<script>
+(function() {
+  // detect mode
+  const isDebug = window.location.search.includes("debug=true");
+  if (isDebug) {
+    document.getElementById("mode-badge").textContent = "debug mode";
+    document.getElementById("mode-badge").className = "badge ok";
+    document.getElementById("mode-notice").style.display = "inline";
+  }
+
+  // render logs in console
+  function renderLogs() {
+    const logs = window.appLogs || [];
+    const el = document.getElementById("log-console");
+    const count = document.getElementById("log-count");
+    const errors = document.getElementById("log-errors");
+    const memory = document.getElementById("log-memory");
+
+    count.textContent = logs.length;
+    errors.textContent = logs.filter(e => e.level === "ERROR").length;
+    memory.textContent = new Blob([JSON.stringify(logs)]).size + " bytes";
+
+    if (logs.length === 0) {
+      el.innerHTML = '<div class="empty">No logs yet. Click buttons above.</div>';
+      return;
+    }
+    el.innerHTML = logs.map(e =>
+      `<div class="entry lvl-${e.level}">` +
+        `<span style="color:#475569">${new Date(e.timestamp).toLocaleTimeString()}</span> ` +
+        `[${e.level}] ${e.message}` +
+        (e.context ? ` <span class="ctx">${JSON.stringify(e.context)}</span>` : "") +
+      `</div>`
+    ).join("");
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // auto-refresh every 500ms
+  setInterval(renderLogs, 500);
+  renderLogs();
+
+  // also log on page load
+  window.logger.info("Logger test page loaded", { debug: isDebug });
+})();
+</script>
+</body>
+</html>

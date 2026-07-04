@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import json
 import logging
 import os
 import uuid
@@ -12,14 +13,18 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-import clear_refine
+import structlog
 
-logger = logging.getLogger("clear_refine_server")
+import clear_refine
 
 # ── in-memory log capture ─────────────────────────────────────
 
 LOG_CAPTURE_MAX = 500
 _log_capture = collections.deque(maxlen=LOG_CAPTURE_MAX)
+
+# ── frontend log capture (от AI-агентов) ──────────────────────
+
+_frontend_log_capture = collections.deque(maxlen=LOG_CAPTURE_MAX)
 
 
 class LogCaptureHandler(logging.Handler):
@@ -30,6 +35,56 @@ class LogCaptureHandler(logging.Handler):
 
 def get_recent_logs(n=100):
     return list(_log_capture)[-n:]
+
+
+def get_frontend_logs(n=100):
+    return list(_frontend_log_capture)[-n:]
+
+
+# ── structlog setup ──────────────────────────────────────────
+
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.JSONRenderer(indent=None, ensure_ascii=False),
+    ],
+    wrapper_class=structlog.stdlib.BoundLogger,
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+
+# ── configure root logging for LogCapture ────────────────────
+
+fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+handler = logging.StreamHandler()
+handler.setFormatter(fmt)
+
+cap = LogCaptureHandler()
+cap.setFormatter(fmt)
+
+root_logger = logging.getLogger()
+root_logger.addHandler(handler)
+root_logger.addHandler(cap)
+root_logger.setLevel(logging.INFO)
+
+# ── structured logger ───────────────────────────────────────
+
+logger = structlog.get_logger("clear_refine_server")
+
+
+def get_recent_logs(n=100):
+    return list(_log_capture)[-n:]
+
+
+def get_frontend_logs(n=100):
+    return list(_frontend_log_capture)[-n:]
 
 API_TOKEN = "clear-refine-demo-token-2026"
 
@@ -92,7 +147,7 @@ def copy_outputs(results, output_dir):
             if src_file.exists():
                 shutil.copy2(str(src_file), str(dst / fname))
                 copied += 1
-    logger.info("Copied %d files to %s", copied, dst)
+    logger.info("Copied files to output dir", count=copied, dest=str(dst))
 
 
 def run_batch_in_thread(
@@ -136,11 +191,11 @@ def run_batch_in_thread(
         else:
             state["status"] = "completed_with_errors"
         state["done"] = len(results)
-        logger.info("Batch %s finished with status=%s", batch_id, state["status"])
+        logger.info("Batch finished", batch_id=batch_id, status=state["status"])
     except Exception as e:
         state["status"] = "failed"
         state["error"] = str(e)
-        logger.error("Batch %s failed: %s", batch_id, e)
+        logger.error("Batch failed", batch_id=batch_id, error=str(e))
     finally:
         _batch_cancel_events.pop(batch_id, None)
 
@@ -151,21 +206,8 @@ def run_batch_in_thread(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     clear_refine.logger.setLevel(logging.INFO)
-    logger.setLevel(logging.INFO)
 
-    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    handler = logging.StreamHandler()
-    handler.setFormatter(fmt)
-    root_logger = logging.getLogger()
-    root_logger.addHandler(handler)
-
-    cap = LogCaptureHandler()
-    cap.setFormatter(fmt)
-    root_logger.addHandler(cap)
-
-    root_logger.setLevel(logging.INFO)
-
-    logger.info("Server starting on port 8765")
+    logger.info("Server starting", port=8765)
     yield
     for batch_id, event in _batch_cancel_events.items():
         event.set()
@@ -189,7 +231,7 @@ if spa_dir.exists():
 # ── auth middleware ───────────────────────────────────────────
 
 
-_PUBLIC_API_PATHS = {"/api/docs", "/api/openapi.json", "/api/redoc", "/api/logs"}
+_PUBLIC_API_PATHS = {"/api/docs", "/api/openapi.json", "/api/redoc", "/api/logs", "/api/logs/frontend"}
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -277,13 +319,46 @@ async def cancel_batch(batch_id: str):
     if event:
         event.set()
     state["status"] = "cancelling"
-    logger.info("Cancelling batch %s", batch_id)
+    logger.info("Cancelling batch", batch_id=batch_id)
     return {"batch_id": batch_id, "status": "cancelling"}
 
 
 @app.get("/api/logs")
 async def get_logs(n: int = 100):
     return {"logs": get_recent_logs(n)}
+
+
+class FrontendLogEntry(BaseModel):
+    timestamp: str = ""
+    level: str = "INFO"
+    message: str = ""
+    context: Optional[dict] = None
+
+
+@app.post("/api/logs/frontend")
+async def post_frontend_log(entry: FrontendLogEntry):
+    """Принимает лог с фронтенда (от AI-агента или debug-режима).
+
+    Записывается в два места:
+    1. _frontend_log_capture — для отдельного GET /api/logs/frontend
+    2. logger.info() — в единый поток логов сервера, с источником source=frontend,
+       чтобы логи фронта и бэка были в единой хронологии.
+    """
+    line = f"{entry.timestamp} [{entry.level}] FRONTEND: {entry.message}"
+    if entry.context:
+        line += f" {json.dumps(entry.context)}"
+    _frontend_log_capture.append(line)
+    logger.info("Frontend log",
+                source="frontend",
+                level=entry.level,
+                message=entry.message,
+                context=entry.context)
+    return {"status": "ok"}
+
+
+@app.get("/api/logs/frontend")
+async def get_frontend_logs_api(n: int = 100):
+    return {"logs": get_frontend_logs(n)}
 
 
 @app.get("/api/browse")

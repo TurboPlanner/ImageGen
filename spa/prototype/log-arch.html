@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearRefine — Logger Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 2rem; line-height: 1.5;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+  .subtitle { color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .mermaid-box {
+    background: #1e293b; border: 1px solid #334155; border-radius: 0.6rem;
+    padding: 1.5rem; overflow-x: auto;
+  }
+  .legend { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1.5rem; font-size: 0.82rem; }
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot-green  { background: #4ade80; }
+  .dot-blue   { background: #38bdf8; }
+  .dot-orange { background: #fbbf24; }
+  .dot-red    { background: #f87171; }
+  .dot-purple { background: #a78bfa; }
+  a { color: #38bdf8; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<h1>ClearRefine — Logger Architecture</h1>
+<p class="subtitle">Dual logging: in-memory + structured JSON backend</p>
+
+<div class="mermaid-box">
+<div class="mermaid">
+flowchart LR
+    subgraph Browser["🌐 Browser (SPA)"]
+        AL["window.appLogs[]\n(циклический буфер, 300)"]
+        LG["logger.js\nlog(level, msg, ctx)"]
+        DP["🔍 Debug Panel\n#ai-debug-panel"]
+    end
+
+    subgraph Playwright["🤖 Playwright Test"]
+        PE["page.evaluate\n('() => logger.getAll()')"]
+    end
+
+    subgraph Server["🐍 Python Server"]
+        FE["POST /api/logs/frontend"]
+        SL["structlog\nJSON-логгер"]
+        LC["_frontend_log_capture\n(GET /api/logs/frontend)"]
+        BL["Бекенд-логи\n(source=backend)"]
+    end
+
+    subgraph Output["📄 Вывод"]
+        SC["stdout\n(консоль сервера)"]
+        UL["Единая хронология\nJSON-логов"]
+    end
+
+    User -->|"Действие в UI"| LG
+    LG -->|"1. Всегда"| AL
+    LG -->|"2. ?debug=true"| FE
+    LG -->|"3. console.log"| Console
+    AL -->|"page.evaluate"| PE
+    FE -->|"logger.info"| SL
+    SL --> SC
+    BL --> SC
+    SC --> UL
+    PE -->|"JSON-массив"| Agent
+</div>
+</div>
+
+<div class="legend">
+  <span class="legend-item"><span class="dot dot-green"></span> Всегда</span>
+  <span class="legend-item"><span class="dot dot-blue"></span> Только debug</span>
+  <span class="legend-item"><span class="dot dot-orange"></span> По запросу</span>
+  <span class="legend-item"><span class="dot dot-red"></span> Тестирование</span>
+  <span class="legend-item"><span class="dot dot-purple"></span> Вывод</span>
+</div>
+
+<p style="margin-top:1.5rem;font-size:0.78rem;color:#475569;">
+  См. также: <a href="log-test.html">log-test.html</a> · 
+  <a href="logger.js">logger.js</a> · 
+  <a href="../prototype-settings.html">Settings Prototype</a>
+</p>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    theme: 'dark',
+    themeVariables: {
+      background: '#1e293b',
+      primaryColor: '#1a304a',
+      primaryTextColor: '#c9d1d9',
+      primaryBorderColor: '#30363d',
+      lineColor: '#38bdf8',
+      secondaryColor: '#3d1a1a',
+      tertiaryColor: '#1b3a2d',
+      actorBorder: '#30363d',
+      actorTextColor: '#c9d1d9',
+      signalColor: '#38bdf8',
+      signalTextColor: '#8b949e',
+      labelTextColor: '#8b949e',
+      loopTextColor: '#8b949e',
+    }
+  });
+</script>
+</body>
+</html>

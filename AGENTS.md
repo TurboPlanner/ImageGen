@@ -1,8 +1,43 @@
-# ClearRefine — SPA + OpenAPI Image Processing Pipeline
+# ClearRefine — Tech Experimentation Playground
 
 ## Overview
 
-Пакетная обработка изображений через ComfyUI с веб-интерфейсом (SPA) и REST API с OpenAPI-спецификацией.
+Экспериментальный проект для тестирования и отработки различных технологий:
+- React SPA через UMD CDN (без бандлера)
+- ES modules + importmap для модульной структуры JS
+- FastAPI + structlog (JSON-логи)
+- Mermaid-диаграммы (HTML + .mmd)
+- Dual logging (frontend in-memory + backend structlog)
+- Semantic markup (JSDoc + #region + GREP_SUMMARY)
+- Playwright extraction через page.evaluate()
+- Multi-model AI via subagents (Explore на GLM-5.2 и др.)
+- Компонентный UI (Context + useReducer, без библиотек стейта)
+
+**Не является production-решением.** Код предназначен для прототипирования
+и поиска оптимальных паттернов.
+
+## Core Architecture
+
+```
+Browser (React 18 UMD CDN)
+  │
+  ├── GET  /              → index.html (SPA)
+  ├── GET  /spa/*         → static files (app.js, styles.css)
+  │
+  ├── POST /api/queue     → Запуск батча
+  ├── GET  /api/status/   → Опрос прогресса
+  ├── POST /api/cancel/   → Отмена батча
+  ├── GET  /api/browse    → Браузер файловой системы
+  ├── GET  /api/logs      → Лог сервера (JSON, structlog)
+  ├── POST /api/logs/frontend → Логи с фронтенда (debug-режим)
+  └── GET  /api/docs      → Swagger UI (OpenAPI 3.1)
+       │
+       ▼
+  FastAPI (port 8765)
+       │
+       ▼
+  clear_refine.py  ───→  ComfyUI API (port 8188)
+```
 
 ## Architecture
 
@@ -28,17 +63,29 @@ Browser (React 18 UMD CDN)
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `server.py` | FastAPI сервер, авторизация, API эндпоинты, статика SPA |
-| `clear_refine.py` | Ядро: сборка workflow, копирование файлов, очередь в ComfyUI, опрос, отмена |
-| `clear_config.json` | Tunnable параметры: промпты, LoRA, ControlNet, KSampler, FaceDetailer |
-| `1Clear.json` | Workflow в формате ComfyUI API |
-| `spa/index.html` | SPA entry point, загрузка React 18 UMD + app.js |
-| `spa/app.js` | React-компоненты (createElement, без JSX): PathBrowser, LogPanel, App |
-| `spa/styles.css` | Тёмная тема, CSS Grid/Flexbox, resize консоли |
-| `TestInput/` | Тестовые изображения (base.jpg, dock1.jpg) |
-| `tests/` | pytest: unit (16), SPA/Playwright (14), integration (18, error-handling) |
+| File / Dir | Purpose |
+|------------|---------|
+| `server.py` | FastAPI сервер + structlog + endpoints |
+| `clear_refine.py` | Ядро пайплайна ComfyUI (workflow, очередь, поллинг) |
+| `clear_config.json` | Tunnable параметры: промпты, LoRA, KSampler, FaceDetailer |
+| `AGENTS.md` | Архитектурный обзор для AI-агентов |
+| `DECISIONS.md` | Лог архитектурных решений |
+| `spa/index.html` | SPA entry point (React 18 UMD CDN) |
+| `spa/app.js` | React-компоненты (createElement, без JSX) |
+| `spa/styles.css` | Тёмная тема, CSS Grid/Flexbox |
+| `spa/prototype/index.html` | Модульная версия (ES modules + importmap) |
+| `spa/prototype/store.js` | Context + useReducer state management |
+| `spa/prototype/ui.js` | UI primitives (Btn, Badge, SliderField, Toggle, InlineEdit) |
+| `spa/prototype/components.js` | Feature components (PipelineBar, ConfigCard, WorkflowMap...) |
+| `spa/prototype/App.js` | App shell + section configs |
+| `spa/prototype/main.js` | Entry point (ES module) |
+| `spa/prototype/logger.js` | Dual logging (in-memory + backend via structlog) |
+| `spa/prototype/log-test.html` | Logger test page |
+| `spa/prototype/log-arch.html` | Logger architecture (Mermaid diagram, HTML) |
+| `spa/prototype/log-arch.mmd` | Logger architecture (Mermaid, .mmd) |
+| `architecture.html` | Architecture overview (Mermaid sequence diagram) |
+| `TestInput/` | Тестовые изображения |
+| `tests/` | pytest: unit (16), SPA (14), integration (18) |
 
 ## Quick Start
 
@@ -46,10 +93,11 @@ Browser (React 18 UMD CDN)
 # 1. Запустить Comfy Desktop (открыть из Пуск — сам поднимет порт 8188)
 # 2. Запустить сервер:
 python server.py
-# 3. Открыть в браузере: http://127.0.0.1:8765
-# 4. Выбрать Input Directory через Browse
-# 5. Настроить промпты (опционально)
-# 6. Нажать Start Processing
+# 3. Открыть в браузере:
+#    - http://127.0.0.1:8765              — основная SPA
+#    - http://127.0.0.1:8765/spa/prototype/index.html  — модульный прототип
+#    - http://127.0.0.1:8765/spa/prototype/log-test.html  — тест логгера
+# 4. Для debug-режима логгера: добавить ?debug=true
 ```
 
 ## Tests
@@ -74,10 +122,34 @@ Full Swagger: `http://127.0.0.1:8765/api/docs`
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/queue` | Bearer | Запуск батча {input_dir, output_dir, output_prefix, positive_prompt, negative_prompt, max_images} |
-| GET | `/api/status/{id}` | Bearer | Прогресс батча {status, total, done, current, results} |
+| POST | `/api/queue` | Bearer | Запуск батча |
+| GET | `/api/status/{id}` | Bearer | Прогресс батча |
 | POST | `/api/cancel/{id}` | Bearer | Отмена батча |
-| GET | `/api/browse` | Bearer | Файловый браузер {path, dirs, images} |
+| GET | `/api/browse` | Bearer | Файловый браузер |
+| GET | `/api/logs` | None | Серверные логи (последние N) |
+| POST | `/api/logs/frontend` | None | Логи с фронтенда (debug-режим) |
+| GET | `/api/logs/frontend` | None | Прочитаь логи фронтенда |
+| GET | `/api/docs` | None | Swagger UI |
+
+## Semantic Markup Convention
+
+Все JS-файлы в `spa/prototype/` следуют единому шаблону:
+
+```
+//#region CONTRACT — filename [DOMAIN(x):...; CONCEPT(x):...; TECH(x):...]
+/** JSDoc: @Purpose, @Rationale, @See, @Structure */
+//#endregion CONTRACT
+// GREP_SUMMARY: keywords...
+
+imports...
+
+//#region ComponentName [DOMAIN(x):...; ...]
+/** @Purpose Что делает компонент (не как). */
+export function ComponentName(...) { ... }
+//#endregion ComponentName
+```
+
+Python-файлы используют # region / # endregion и structlog вместо стандартного logging.
 | GET | `/api/logs` | None | Последние N строк лога |
 | GET | `/api/docs` | None | Swagger UI |
 | GET | `/api/openapi.json` | None | OpenAPI спецификация |

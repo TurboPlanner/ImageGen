@@ -1,0 +1,33 @@
+flowchart LR
+    subgraph Browser["🌐 Browser (SPA)"]
+        AL["window.appLogs[]\n(циклический буфер, 300)"]
+        LG["logger.js\nlog(level, msg, ctx)"]
+        DP["🔍 Debug Panel\n#ai-debug-panel"]
+    end
+
+    subgraph Playwright["🤖 Playwright Test"]
+        PE["page.evaluate\n('() => logger.getAll()')"]
+    end
+
+    subgraph Server["🐍 Python Server"]
+        FE["POST /api/logs/frontend"]
+        SL["structlog\nJSON-логгер"]
+        LC["_frontend_log_capture\n(GET /api/logs/frontend)"]
+        BL["Бекенд-логи\n(source=backend)"]
+    end
+
+    subgraph Output["📄 Вывод"]
+        SC["stdout\n(консоль сервера)"]
+        UL["Единая хронология\nJSON-логов"]
+    end
+
+    User -->|"Действие в UI"| LG
+    LG -->|"1. Всегда"| AL
+    LG -->|"2. ?debug=true"| FE
+    LG -->|"3. console.log"| Console
+    AL -->|"page.evaluate"| PE
+    FE -->|"logger.info"| SL
+    SL --> SC
+    BL --> SC
+    SC --> UL
+    PE -->|"JSON-массив"| Agent

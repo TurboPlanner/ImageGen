@@ -15,3 +15,6 @@ yarn.lock
 .kilo/agent-manager.json
 temp_check.json
 yolov8n.pt
+
+# Chat server config (contains API key)
+chat_config.json

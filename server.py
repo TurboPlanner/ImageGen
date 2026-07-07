@@ -5,6 +5,7 @@ import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -231,7 +232,7 @@ if spa_dir.exists():
 # ── auth middleware ───────────────────────────────────────────
 
 
-_PUBLIC_API_PATHS = {"/api/docs", "/api/openapi.json", "/api/redoc", "/api/logs", "/api/logs/frontend"}
+_PUBLIC_API_PATHS = {"/api/docs", "/api/openapi.json", "/api/redoc", "/api/logs", "/api/logs/frontend", "/api/health"}
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -379,6 +380,14 @@ async def browse(path: str = ""):
         if p.is_file() and p.suffix.lower() in clear_refine.IMAGE_EXTENSIONS
     )
     return {"path": str(target), "parent": parent, "dirs": dirs, "images": images}
+
+
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "ok", 
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 # ── serve SPA ─────────────────────────────────────────────────
